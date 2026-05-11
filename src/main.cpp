@@ -55,8 +55,8 @@ constexpr int kHeaderBaselineY = kFullscreenRows ? 22 : 64;
 constexpr int kHeaderUnderlineY = kFullscreenRows ? 28 : 70;
 constexpr int kRowStartY = kFullscreenRows ? 50 : (kCompactRows ? 88 : 94);
 constexpr int kRowHeight = kCompactRows ? 18 : 24;
-constexpr int kTableLeftX = 48;
-constexpr int kDestinationX = 164;
+constexpr int kTableLeftX = 18;
+constexpr int kDestinationX = 116;
 constexpr int kTrackX = 334;
 constexpr int kTrackRightX = 382;
 
@@ -355,7 +355,7 @@ void drawRow(const Departure &departure, int y) {
     display.print(" X ");
   } else if (departure.delayMinutes > 0) {
     display.print(" +");
-    display.print(departure.delayMinutes);
+    display.print(min(departure.delayMinutes, 99));
     display.print(" ");
   } else {
     display.print("   ");
@@ -363,7 +363,7 @@ void drawRow(const Departure &departure, int y) {
 
   display.setTextColor(departure.cancelled ? GxEPD_RED : GxEPD_BLACK);
   display.setCursor(kDestinationX, y);
-  display.print(fitText(departure.direction, kCompactRows ? 20 : 18));
+  display.print(fitText(departure.direction, kCompactRows ? 22 : 20));
 
   display.setTextColor(departure.cancelled ? GxEPD_RED : GxEPD_BLACK);
   drawRightAlignedText(fitText(departure.platform, 4), kTrackRightX, y);
@@ -391,7 +391,8 @@ void drawScreen(bool fetchOk) {
     display.print("Bestemming");
     display.setCursor(kTrackX, kHeaderBaselineY);
     display.print("Spoor");
-    display.drawFastHLine(kTableLeftX, kHeaderUnderlineY, 320, GxEPD_RED);
+    display.drawFastHLine(kTableLeftX, kHeaderUnderlineY,
+                          kTrackRightX - kTableLeftX, GxEPD_RED);
 
     if (!fetchOk && departureCount == 0) {
       display.setFont(&FreeSans12pt7b);
