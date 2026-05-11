@@ -1,0 +1,8 @@
+.pio/
+.vscode/
+.cache/
+include/secrets.h
+*.bin
+*.elf
+*.map
+
