@@ -5,6 +5,9 @@
 #include <SPI.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <Fonts/FreeSans12pt7b.h>
+#include <Fonts/FreeSans9pt7b.h>
+#include <Fonts/FreeSansBold12pt7b.h>
 #include <time.h>
 
 #if __has_include("secrets.h")
@@ -23,11 +26,16 @@ constexpr const char *kStationName = "Rotterdam Zuid";
 constexpr const char *kApiUrl =
     "https://gateway.apiportal.ns.nl/reisinformatie-api/api/v2/departures"
     "?station=RTZ";
+constexpr const char *kTimezone = "CET-1CEST,M3.5.0,M10.5.0/3";
 
 constexpr uint32_t kRefreshIntervalMs = 5UL * 60UL * 1000UL;
 constexpr uint32_t kWifiTimeoutMs = 20000;
 constexpr int kMaxDepartures = 12;
 constexpr int kRowsOnDisplay = 8;
+constexpr int kRowStartY = 88;
+constexpr int kRowHeight = 24;
+constexpr int kLeftX = 4;
+constexpr int kDestinationX = 120;
 
 constexpr int kPinBusy = 4;
 constexpr int kPinCs = 5;
@@ -59,7 +67,6 @@ int departureCount = 0;
 int hiddenDepartureCount = 0;
 int apiDepartureCount = 0;
 int skippedParseCount = 0;
-int skippedWindowCount = 0;
 String lastError;
 time_t lastSuccessfulFetch = 0;
 uint32_t nextRefreshAt = 0;
@@ -114,6 +121,16 @@ String fitText(const String &value, int maxChars) {
   return value.substring(0, maxChars - 1) + ".";
 }
 
+void drawRightAlignedText(const String &text, int rightX, int baselineY) {
+  int16_t x = 0;
+  int16_t y = 0;
+  uint16_t width = 0;
+  uint16_t height = 0;
+  display.getTextBounds(text, 0, baselineY, &x, &y, &width, &height);
+  display.setCursor(rightX - width, baselineY);
+  display.print(text);
+}
+
 void connectWifi() {
   if (WiFi.status() == WL_CONNECTED) {
     return;
@@ -140,9 +157,7 @@ void connectWifi() {
 }
 
 void syncClock() {
-  setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);
-  tzset();
-  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  configTzTime(kTimezone, "pool.ntp.org", "time.nist.gov");
 
   Serial.print("Syncing time");
   for (int i = 0; i < 40; ++i) {
@@ -218,12 +233,10 @@ bool fetchDepartures() {
 
   const time_t now = time(nullptr);
   const bool clockReady = now > 1700000000;
-  const time_t windowEnd = clockReady ? now + 60 * 60 : 0;
   departureCount = 0;
   hiddenDepartureCount = 0;
   apiDepartureCount = list.size();
   skippedParseCount = 0;
-  skippedWindowCount = 0;
 
   Serial.print("Clock now: ");
   Serial.print(formatDateTime(now));
@@ -241,11 +254,6 @@ bool fetchDepartures() {
 
     if (sortTime <= 0) {
       skippedParseCount++;
-      continue;
-    }
-
-    if (clockReady && (sortTime < now - 60 || sortTime > windowEnd)) {
-      skippedWindowCount++;
       continue;
     }
 
@@ -294,19 +302,19 @@ bool fetchDepartures() {
 
   lastError = "";
   lastSuccessfulFetch = clockReady ? now : time(nullptr);
-  Serial.printf("Fetched %d departures for %s, skipped parse=%d, outside window=%d, hidden=%d\n",
+  Serial.printf("Fetched %d departures for %s, skipped parse=%d, hidden=%d\n",
                 departureCount,
                 kStationCode,
                 skippedParseCount,
-                skippedWindowCount,
                 hiddenDepartureCount);
   return true;
 }
 
 void drawRow(const Departure &departure, int y) {
   const bool alert = departure.cancelled || departure.delayMinutes > 0;
+  display.setFont(&FreeSans12pt7b);
   display.setTextColor(alert ? GxEPD_RED : GxEPD_BLACK);
-  display.setCursor(4, y);
+  display.setCursor(kLeftX, y);
   display.print(departure.timeText);
 
   if (departure.cancelled) {
@@ -320,7 +328,8 @@ void drawRow(const Departure &departure, int y) {
   }
 
   display.setTextColor(departure.cancelled ? GxEPD_RED : GxEPD_BLACK);
-  display.print(fitText(departure.direction, 32));
+  display.setCursor(kDestinationX, y);
+  display.print(fitText(departure.direction, 24));
 }
 
 void drawScreen(bool fetchOk) {
@@ -331,48 +340,46 @@ void drawScreen(bool fetchOk) {
     display.fillScreen(GxEPD_WHITE);
 
     display.setTextColor(GxEPD_BLACK);
-    display.setTextSize(2);
-    display.setCursor(4, 22);
+    display.setFont(&FreeSansBold12pt7b);
+    display.setCursor(kLeftX, 28);
     display.print(kStationName);
 
-    display.setTextSize(1);
-    display.setCursor(305, 14);
+    display.setFont(&FreeSans9pt7b);
+    display.setCursor(305, 18);
     display.print(formatClock(time(nullptr)));
-    display.setCursor(305, 28);
+    display.setCursor(305, 34);
     display.print("next hour");
 
-    display.drawFastHLine(0, 42, 400, GxEPD_BLACK);
+    display.drawFastHLine(0, 42, 400, GxEPD_RED);
 
-    display.setTextSize(1);
+    display.setFont(&FreeSans9pt7b);
     display.setTextColor(GxEPD_BLACK);
-    display.setCursor(4, 58);
-    display.print("Time  Destination");
+    display.setCursor(kLeftX, 64);
+    display.print("Time");
+    display.setCursor(kDestinationX, 64);
+    display.print("Destination");
+    display.drawFastHLine(kLeftX, 70, 210, GxEPD_RED);
 
     if (!fetchOk && departureCount == 0) {
-      display.setTextSize(2);
+      display.setFont(&FreeSans12pt7b);
       display.setTextColor(GxEPD_RED);
       display.setCursor(45, 135);
       display.print("Fetch failed");
-      display.setTextSize(1);
-      display.setCursor(35, 160);
+      display.setFont(&FreeSans9pt7b);
+      display.setCursor(35, 165);
       display.print(fitText(lastError, 44));
     } else if (departureCount == 0) {
-      display.setTextSize(2);
+      display.setFont(&FreeSans12pt7b);
       display.setCursor(35, 145);
-      if (apiDepartureCount > 0 && skippedWindowCount == apiDepartureCount) {
-        display.print("No trains in next hour");
-      } else {
-        display.print("No departures found");
-      }
+      display.print("No departures found");
     } else {
-      display.setTextSize(2);
       const int rows = min(departureCount, kRowsOnDisplay);
       for (int i = 0; i < rows; ++i) {
-        drawRow(departures[i], 84 + i * 24);
+        drawRow(departures[i], kRowStartY + i * kRowHeight);
       }
 
       if (departureCount > kRowsOnDisplay || hiddenDepartureCount > 0) {
-        display.setTextSize(1);
+        display.setFont(&FreeSans9pt7b);
         display.setTextColor(GxEPD_BLACK);
         display.setCursor(4, 284);
         display.print("+");
@@ -381,20 +388,15 @@ void drawScreen(bool fetchOk) {
       }
     }
 
-    display.drawFastHLine(0, 270, 400, GxEPD_BLACK);
-    display.setTextSize(1);
-    display.setCursor(4, 292);
+    display.drawFastHLine(0, 270, 400, GxEPD_RED);
+    display.setFont(&FreeSans9pt7b);
 
     if (fetchOk) {
       display.setTextColor(GxEPD_BLACK);
-      display.print("Updated ");
-      display.print(formatDateTime(lastSuccessfulFetch));
+      drawRightAlignedText("Upd " + formatDateTime(lastSuccessfulFetch), 396, 292);
     } else {
       display.setTextColor(GxEPD_RED);
-      display.print("Stale ");
-      display.print(formatDateTime(lastSuccessfulFetch));
-      display.print("  ");
-      display.print(fitText(lastError, 28));
+      drawRightAlignedText("Err " + formatDateTime(lastSuccessfulFetch), 396, 292);
     }
   } while (display.nextPage());
 
