@@ -20,13 +20,20 @@
 #define NS_API_KEY ""
 #endif
 
+#ifndef STATION_CODE
+#define STATION_CODE "RTZ"
+#endif
+
+#ifndef STATION_NAME
+#define STATION_NAME "Rotterdam Zuid"
+#endif
+
 namespace {
 
-constexpr const char *kStationCode = "RTZ";
-constexpr const char *kStationName = "Rotterdam Zuid";
-constexpr const char *kApiUrl =
-    "https://gateway.apiportal.ns.nl/reisinformatie-api/api/v2/departures"
-    "?station=RTZ";
+constexpr const char *kStationCode = STATION_CODE;
+constexpr const char *kStationName = STATION_NAME;
+constexpr const char *kApiUrlBase =
+    "https://gateway.apiportal.ns.nl/reisinformatie-api/api/v2/departures?station=";
 constexpr const char *kTimezone = "CET-1CEST,M3.5.0,M10.5.0/3";
 
 constexpr uint32_t kRefreshIntervalMs = 5UL * 60UL * 1000UL;
@@ -202,7 +209,8 @@ bool fetchDepartures() {
   client.setInsecure();
 
   HTTPClient http;
-  if (!http.begin(client, kApiUrl)) {
+  const String apiUrl = String(kApiUrlBase) + kStationCode;
+  if (!http.begin(client, apiUrl)) {
     lastError = "HTTP setup failed";
     Serial.println(lastError);
     return false;
@@ -419,7 +427,8 @@ void setup() {
   Serial.begin(115200);
   delay(500);
   Serial.println();
-  Serial.println("Rotterdam Zuid e-paper departures");
+  Serial.print(kStationName);
+  Serial.println(" e-paper departures");
 
   SPI.begin(kPinSck, -1, kPinMosi, kPinCs);
   display.init(115200, true, 2, false);
