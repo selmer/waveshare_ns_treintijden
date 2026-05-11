@@ -8,6 +8,7 @@
 #include <Fonts/FreeSans12pt7b.h>
 #include <Fonts/FreeSans9pt7b.h>
 #include <Fonts/FreeSansBold12pt7b.h>
+#include <Fonts/FreeSansBold9pt7b.h>
 #include <time.h>
 
 #if __has_include("secrets.h")
@@ -32,10 +33,10 @@ constexpr uint32_t kRefreshIntervalMs = 5UL * 60UL * 1000UL;
 constexpr uint32_t kWifiTimeoutMs = 20000;
 constexpr int kMaxDepartures = 12;
 constexpr int kRowsOnDisplay = 8;
-constexpr int kRowStartY = 88;
+constexpr int kRowStartY = 94;
 constexpr int kRowHeight = 24;
-constexpr int kLeftX = 4;
-constexpr int kDestinationX = 120;
+constexpr int kTableLeftX = 48;
+constexpr int kDestinationX = 164;
 
 constexpr int kPinBusy = 4;
 constexpr int kPinCs = 5;
@@ -128,6 +129,16 @@ void drawRightAlignedText(const String &text, int rightX, int baselineY) {
   uint16_t height = 0;
   display.getTextBounds(text, 0, baselineY, &x, &y, &width, &height);
   display.setCursor(rightX - width, baselineY);
+  display.print(text);
+}
+
+void drawCenteredText(const String &text, int centerX, int baselineY) {
+  int16_t x = 0;
+  int16_t y = 0;
+  uint16_t width = 0;
+  uint16_t height = 0;
+  display.getTextBounds(text, 0, baselineY, &x, &y, &width, &height);
+  display.setCursor(centerX - width / 2, baselineY);
   display.print(text);
 }
 
@@ -314,7 +325,7 @@ void drawRow(const Departure &departure, int y) {
   const bool alert = departure.cancelled || departure.delayMinutes > 0;
   display.setFont(&FreeSans12pt7b);
   display.setTextColor(alert ? GxEPD_RED : GxEPD_BLACK);
-  display.setCursor(kLeftX, y);
+  display.setCursor(kTableLeftX, y);
   display.print(departure.timeText);
 
   if (departure.cancelled) {
@@ -341,24 +352,17 @@ void drawScreen(bool fetchOk) {
 
     display.setTextColor(GxEPD_BLACK);
     display.setFont(&FreeSansBold12pt7b);
-    display.setCursor(kLeftX, 28);
-    display.print(kStationName);
-
-    display.setFont(&FreeSans9pt7b);
-    display.setCursor(305, 18);
-    display.print(formatClock(time(nullptr)));
-    display.setCursor(305, 34);
-    display.print("next hour");
+    drawCenteredText(kStationName, 200, 28);
 
     display.drawFastHLine(0, 42, 400, GxEPD_RED);
 
-    display.setFont(&FreeSans9pt7b);
+    display.setFont(&FreeSansBold9pt7b);
     display.setTextColor(GxEPD_BLACK);
-    display.setCursor(kLeftX, 64);
+    display.setCursor(kTableLeftX, 64);
     display.print("Time");
     display.setCursor(kDestinationX, 64);
     display.print("Destination");
-    display.drawFastHLine(kLeftX, 70, 210, GxEPD_RED);
+    display.drawFastHLine(kTableLeftX, 70, 210, GxEPD_RED);
 
     if (!fetchOk && departureCount == 0) {
       display.setFont(&FreeSans12pt7b);
