@@ -28,6 +28,10 @@
 #define STATION_NAME "Rotterdam Zuid"
 #endif
 
+#ifndef COMPACT_ROWS
+#define COMPACT_ROWS false
+#endif
+
 namespace {
 
 constexpr const char *kStationCode = STATION_CODE;
@@ -39,9 +43,10 @@ constexpr const char *kTimezone = "CET-1CEST,M3.5.0,M10.5.0/3";
 constexpr uint32_t kRefreshIntervalMs = 5UL * 60UL * 1000UL;
 constexpr uint32_t kWifiTimeoutMs = 20000;
 constexpr int kMaxDepartures = 12;
-constexpr int kRowsOnDisplay = 8;
-constexpr int kRowStartY = 94;
-constexpr int kRowHeight = 24;
+constexpr bool kCompactRows = COMPACT_ROWS;
+constexpr int kRowsOnDisplay = kCompactRows ? 10 : 8;
+constexpr int kRowStartY = kCompactRows ? 88 : 94;
+constexpr int kRowHeight = kCompactRows ? 18 : 24;
 constexpr int kTableLeftX = 48;
 constexpr int kDestinationX = 164;
 
@@ -331,7 +336,7 @@ bool fetchDepartures() {
 
 void drawRow(const Departure &departure, int y) {
   const bool alert = departure.cancelled || departure.delayMinutes > 0;
-  display.setFont(&FreeSans12pt7b);
+  display.setFont(kCompactRows ? &FreeSans9pt7b : &FreeSans12pt7b);
   display.setTextColor(alert ? GxEPD_RED : GxEPD_BLACK);
   display.setCursor(kTableLeftX, y);
   display.print(departure.timeText);

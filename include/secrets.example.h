@@ -15,3 +15,8 @@
 // Use the NS station-list service for the full list of possible station codes.
 #define STATION_CODE "RTZ"
 #define STATION_NAME "Rotterdam Zuid"
+
+// Use compact rows for large stations to show more departures.
+// false: 8 rows with larger 12pt text.
+// true: 10 rows with smaller 9pt text.
+#define COMPACT_ROWS false
