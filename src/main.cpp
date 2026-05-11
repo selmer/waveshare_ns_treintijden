@@ -32,6 +32,10 @@
 #define COMPACT_ROWS false
 #endif
 
+#ifndef FULLSCREEN_ROWS
+#define FULLSCREEN_ROWS false
+#endif
+
 namespace {
 
 constexpr const char *kStationCode = STATION_CODE;
@@ -42,13 +46,19 @@ constexpr const char *kTimezone = "CET-1CEST,M3.5.0,M10.5.0/3";
 
 constexpr uint32_t kRefreshIntervalMs = 5UL * 60UL * 1000UL;
 constexpr uint32_t kWifiTimeoutMs = 20000;
-constexpr int kMaxDepartures = 12;
+constexpr int kMaxDepartures = 16;
 constexpr bool kCompactRows = COMPACT_ROWS;
-constexpr int kRowsOnDisplay = kCompactRows ? 10 : 8;
-constexpr int kRowStartY = kCompactRows ? 88 : 94;
+constexpr bool kFullscreenRows = FULLSCREEN_ROWS;
+constexpr int kRowsOnDisplay =
+    kFullscreenRows ? (kCompactRows ? 14 : 11) : (kCompactRows ? 10 : 8);
+constexpr int kHeaderBaselineY = kFullscreenRows ? 22 : 64;
+constexpr int kHeaderUnderlineY = kFullscreenRows ? 28 : 70;
+constexpr int kRowStartY = kFullscreenRows ? 50 : (kCompactRows ? 88 : 94);
 constexpr int kRowHeight = kCompactRows ? 18 : 24;
 constexpr int kTableLeftX = 48;
 constexpr int kDestinationX = 164;
+constexpr int kTrackX = 334;
+constexpr int kTrackRightX = 382;
 
 constexpr int kPinBusy = 4;
 constexpr int kPinCs = 5;
@@ -159,7 +169,7 @@ void connectWifi() {
     return;
   }
 
-  Serial.print("Connecting to Wi-Fi");
+  Serial.print("Verbinden met Wi-Fi");
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
@@ -171,10 +181,10 @@ void connectWifi() {
   Serial.println();
 
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.print("Connected: ");
+    Serial.print("Verbonden: ");
     Serial.println(WiFi.localIP());
   } else {
-    lastError = "Wi-Fi connection failed";
+    lastError = "Wi-Fi verbinding mislukt";
     Serial.println(lastError);
   }
 }
@@ -182,12 +192,12 @@ void connectWifi() {
 void syncClock() {
   configTzTime(kTimezone, "pool.ntp.org", "time.nist.gov");
 
-  Serial.print("Syncing time");
+  Serial.print("Tijd synchroniseren");
   for (int i = 0; i < 40; ++i) {
     time_t now = time(nullptr);
     if (now > 1700000000) {
       Serial.println();
-      Serial.print("Time synced: ");
+      Serial.print("Tijd gesynchroniseerd: ");
       Serial.println(formatDateTime(now));
       return;
     }
@@ -195,12 +205,12 @@ void syncClock() {
     Serial.print(".");
   }
   Serial.println();
-  Serial.println("Time sync timed out");
+  Serial.println("Tijd synchroniseren verlopen");
 }
 
 bool fetchDepartures() {
   if (strlen(NS_API_KEY) == 0) {
-    lastError = "NS API key missing";
+    lastError = "NS API-sleutel ontbreekt";
     Serial.println(lastError);
     return false;
   }
@@ -216,7 +226,7 @@ bool fetchDepartures() {
   HTTPClient http;
   const String apiUrl = String(kApiUrlBase) + kStationCode;
   if (!http.begin(client, apiUrl)) {
-    lastError = "HTTP setup failed";
+    lastError = "HTTP setup mislukt";
     Serial.println(lastError);
     return false;
   }
@@ -238,7 +248,7 @@ bool fetchDepartures() {
   http.end();
 
   if (error) {
-    lastError = "JSON parse failed";
+    lastError = "JSON verwerken mislukt";
     Serial.print(lastError);
     Serial.print(": ");
     Serial.println(error.c_str());
@@ -250,7 +260,7 @@ bool fetchDepartures() {
     list = doc["departures"].as<JsonArray>();
   }
   if (list.isNull()) {
-    lastError = "No departures in response";
+    lastError = "Geen vertrekken in antwoord";
     Serial.println(lastError);
     return false;
   }
@@ -262,12 +272,12 @@ bool fetchDepartures() {
   apiDepartureCount = list.size();
   skippedParseCount = 0;
 
-  Serial.print("Clock now: ");
+  Serial.print("Klok nu: ");
   Serial.print(formatDateTime(now));
   Serial.print(" (");
-  Serial.print(clockReady ? "synced" : "not synced");
+  Serial.print(clockReady ? "gesynchroniseerd" : "niet gesynchroniseerd");
   Serial.println(")");
-  Serial.printf("NS API returned %d departures\n", apiDepartureCount);
+  Serial.printf("NS API gaf %d vertrekken terug\n", apiDepartureCount);
 
   for (JsonObject item : list) {
     const char *plannedText = item["plannedDateTime"] | "";
@@ -326,7 +336,7 @@ bool fetchDepartures() {
 
   lastError = "";
   lastSuccessfulFetch = clockReady ? now : time(nullptr);
-  Serial.printf("Fetched %d departures for %s, skipped parse=%d, hidden=%d\n",
+  Serial.printf("Opgehaald: %d vertrekken voor %s, parse overgeslagen=%d, verborgen=%d\n",
                 departureCount,
                 kStationCode,
                 skippedParseCount,
@@ -353,7 +363,10 @@ void drawRow(const Departure &departure, int y) {
 
   display.setTextColor(departure.cancelled ? GxEPD_RED : GxEPD_BLACK);
   display.setCursor(kDestinationX, y);
-  display.print(fitText(departure.direction, 24));
+  display.print(fitText(departure.direction, kCompactRows ? 20 : 18));
+
+  display.setTextColor(departure.cancelled ? GxEPD_RED : GxEPD_BLACK);
+  drawRightAlignedText(fitText(departure.platform, 4), kTrackRightX, y);
 }
 
 void drawScreen(bool fetchOk) {
@@ -363,57 +376,63 @@ void drawScreen(bool fetchOk) {
   do {
     display.fillScreen(GxEPD_WHITE);
 
-    display.setTextColor(GxEPD_BLACK);
-    display.setFont(&FreeSansBold12pt7b);
-    drawCenteredText(kStationName, 200, 28);
-
-    display.drawFastHLine(0, 42, 400, GxEPD_RED);
+    if (!kFullscreenRows) {
+      display.setTextColor(GxEPD_BLACK);
+      display.setFont(&FreeSansBold12pt7b);
+      drawCenteredText(kStationName, 200, 28);
+      display.drawFastHLine(0, 42, 400, GxEPD_RED);
+    }
 
     display.setFont(&FreeSansBold9pt7b);
     display.setTextColor(GxEPD_BLACK);
-    display.setCursor(kTableLeftX, 64);
-    display.print("Time");
-    display.setCursor(kDestinationX, 64);
-    display.print("Destination");
-    display.drawFastHLine(kTableLeftX, 70, 210, GxEPD_RED);
+    display.setCursor(kTableLeftX, kHeaderBaselineY);
+    display.print("Tijd");
+    display.setCursor(kDestinationX, kHeaderBaselineY);
+    display.print("Bestemming");
+    display.setCursor(kTrackX, kHeaderBaselineY);
+    display.print("Spoor");
+    display.drawFastHLine(kTableLeftX, kHeaderUnderlineY, 320, GxEPD_RED);
 
     if (!fetchOk && departureCount == 0) {
       display.setFont(&FreeSans12pt7b);
       display.setTextColor(GxEPD_RED);
       display.setCursor(45, 135);
-      display.print("Fetch failed");
+      display.print("Ophalen mislukt");
       display.setFont(&FreeSans9pt7b);
       display.setCursor(35, 165);
       display.print(fitText(lastError, 44));
     } else if (departureCount == 0) {
       display.setFont(&FreeSans12pt7b);
       display.setCursor(35, 145);
-      display.print("No departures found");
+      display.print("Geen vertrekken");
     } else {
       const int rows = min(departureCount, kRowsOnDisplay);
       for (int i = 0; i < rows; ++i) {
         drawRow(departures[i], kRowStartY + i * kRowHeight);
       }
 
-      if (departureCount > kRowsOnDisplay || hiddenDepartureCount > 0) {
+      if (!kFullscreenRows &&
+          (departureCount > kRowsOnDisplay || hiddenDepartureCount > 0)) {
         display.setFont(&FreeSans9pt7b);
         display.setTextColor(GxEPD_BLACK);
         display.setCursor(4, 284);
         display.print("+");
         display.print(departureCount - kRowsOnDisplay + hiddenDepartureCount);
-        display.print(" more departures");
+        display.print(" meer vertrekken");
       }
     }
 
-    display.drawFastHLine(0, 270, 400, GxEPD_RED);
-    display.setFont(&FreeSans9pt7b);
+    if (!kFullscreenRows) {
+      display.drawFastHLine(0, 270, 400, GxEPD_RED);
+      display.setFont(&FreeSans9pt7b);
 
-    if (fetchOk) {
-      display.setTextColor(GxEPD_BLACK);
-      drawRightAlignedText("Upd " + formatDateTime(lastSuccessfulFetch), 396, 292);
-    } else {
-      display.setTextColor(GxEPD_RED);
-      drawRightAlignedText("Err " + formatDateTime(lastSuccessfulFetch), 396, 292);
+      if (fetchOk) {
+        display.setTextColor(GxEPD_BLACK);
+        drawRightAlignedText("Bij " + formatDateTime(lastSuccessfulFetch), 396, 292);
+      } else {
+        display.setTextColor(GxEPD_RED);
+        drawRightAlignedText("Fout " + formatDateTime(lastSuccessfulFetch), 396, 292);
+      }
     }
   } while (display.nextPage());
 
@@ -433,7 +452,7 @@ void setup() {
   delay(500);
   Serial.println();
   Serial.print(kStationName);
-  Serial.println(" e-paper departures");
+  Serial.println(" e-paper vertrekken");
 
   SPI.begin(kPinSck, -1, kPinMosi, kPinCs);
   display.init(115200, true, 2, false);

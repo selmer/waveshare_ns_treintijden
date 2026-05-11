@@ -20,3 +20,8 @@
 // false: 8 rows with larger 12pt text.
 // true: 10 rows with smaller 9pt text.
 #define COMPACT_ROWS false
+
+// Hide the station title and footer to use the screen for more departures.
+// false: show station title, footer timestamp, and "+N meer vertrekken".
+// true: show only the table header and departure rows.
+#define FULLSCREEN_ROWS false
