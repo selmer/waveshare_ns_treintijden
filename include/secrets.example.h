@@ -11,7 +11,7 @@
 //   RTB  - Rotterdam Blaak
 //   RTA  - Rotterdam Alexander
 //   RLN  - Rotterdam Lombardijen
-//   RDAM - Rotterdam Centraal
+//   RTD - Rotterdam Centraal
 // Use the NS station-list service for the full list of possible station codes.
 #define STATION_CODE "RTZ"
 #define STATION_NAME "Rotterdam Zuid"
