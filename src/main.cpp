@@ -144,6 +144,46 @@ String fitText(const String &value, int maxChars) {
   return value.substring(0, maxChars - 1) + ".";
 }
 
+String formatTrainTypePrefix(const String &trainType) {
+  String normalized = trainType;
+  normalized.trim();
+  normalized.toUpperCase();
+
+  if (normalized.length() == 0) {
+    return "TRN";
+  }
+  if (normalized == "ICD" || normalized.indexOf("INTERCITY DIRECT") >= 0) {
+    return "ICD";
+  }
+  if (normalized == "IC" || normalized.indexOf("INTERCITY") >= 0) {
+    return "IC";
+  }
+  if (normalized == "SP" || normalized == "SPR" ||
+      normalized.indexOf("SPRINTER") >= 0) {
+    return "SP";
+  }
+  if (normalized == "ICE" || normalized.indexOf("ICE") >= 0) {
+    return "ICE";
+  }
+  if (normalized == "EUR" || normalized.indexOf("EUROSTAR") >= 0) {
+    return "EUR";
+  }
+  if (normalized == "NJ" || normalized.indexOf("NIGHTJET") >= 0) {
+    return "NJ";
+  }
+  if (normalized == "RE" || normalized.indexOf("REGIONAL EXPRESS") >= 0) {
+    return "RE";
+  }
+  if (normalized == "RB" || normalized.indexOf("REGIONALBAHN") >= 0) {
+    return "RB";
+  }
+  if (normalized == "BUS" || normalized.indexOf("BUS") >= 0 ||
+      normalized.indexOf("VERVANGEND") >= 0) {
+    return "BUS";
+  }
+  return "TRN";
+}
+
 void drawRightAlignedText(const String &text, int rightX, int baselineY) {
   int16_t x = 0;
   int16_t y = 0;
@@ -346,6 +386,8 @@ bool fetchDepartures() {
 
 void drawRow(const Departure &departure, int y) {
   const bool alert = departure.cancelled || departure.delayMinutes > 0;
+  const String destinationText =
+      formatTrainTypePrefix(departure.trainType) + " " + departure.direction;
   display.setFont(kCompactRows ? &FreeSans9pt7b : &FreeSans12pt7b);
   display.setTextColor(alert ? GxEPD_RED : GxEPD_BLACK);
   display.setCursor(kTableLeftX, y);
@@ -363,7 +405,7 @@ void drawRow(const Departure &departure, int y) {
 
   display.setTextColor(departure.cancelled ? GxEPD_RED : GxEPD_BLACK);
   display.setCursor(kDestinationX, y);
-  display.print(fitText(departure.direction, kCompactRows ? 22 : 20));
+  display.print(fitText(destinationText, kCompactRows ? 22 : 20));
 
   display.setTextColor(departure.cancelled ? GxEPD_RED : GxEPD_BLACK);
   drawRightAlignedText(fitText(departure.platform, 4), kTrackRightX, y);
